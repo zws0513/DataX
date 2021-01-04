@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * <p/>
  */
 public enum DataBaseType {
-    MySql("mysql", "com.mysql.jdbc.Driver"),
+    MySql("mysql", "com.mysql.cj.jdbc.Driver"),
     Tddl("mysql", "com.mysql.jdbc.Driver"),
     DRDS("drds", "com.mysql.jdbc.Driver"),
     Oracle("oracle", "oracle.jdbc.OracleDriver"),
@@ -40,6 +40,17 @@ public enum DataBaseType {
         String suffix = null;
         switch (this) {
             case MySql:
+                if (jdbc.contains("useSSL")) {
+                    suffix = "yearIsDateType=false&zeroDateTimeBehavior=CONVERT_TO_NULL&tinyInt1isBit=false&rewriteBatchedStatements=true";
+                } else {
+                    suffix = "yearIsDateType=false&zeroDateTimeBehavior=CONVERT_TO_NULL&tinyInt1isBit=false&rewriteBatchedStatements=true&useSSL=false";
+                }
+                if (jdbc.contains("?")) {
+                    result = jdbc + "&" + suffix;
+                } else {
+                    result = jdbc + "?" + suffix;
+                }
+                break;
             case DRDS:
                 suffix = "yearIsDateType=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&rewriteBatchedStatements=true";
                 if (jdbc.contains("?")) {
@@ -74,7 +85,11 @@ public enum DataBaseType {
         String suffix = null;
         switch (this) {
             case MySql:
-                suffix = "yearIsDateType=false&zeroDateTimeBehavior=convertToNull&rewriteBatchedStatements=true&tinyInt1isBit=false";
+                if (jdbc.contains("useSSL")) {
+                    suffix = "yearIsDateType=false&zeroDateTimeBehavior=CONVERT_TO_NULL&rewriteBatchedStatements=true&tinyInt1isBit=false";
+                } else {
+                    suffix = "yearIsDateType=false&zeroDateTimeBehavior=CONVERT_TO_NULL&rewriteBatchedStatements=true&tinyInt1isBit=false&useSSL=false";
+                }
                 if (jdbc.contains("?")) {
                     result = jdbc + "&" + suffix;
                 } else {

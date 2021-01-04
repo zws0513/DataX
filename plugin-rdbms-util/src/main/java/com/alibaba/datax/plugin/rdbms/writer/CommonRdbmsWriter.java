@@ -402,13 +402,14 @@ public class CommonRdbmsWriter {
                 throws SQLException {
             for (int i = 0; i < this.columnNumber; i++) {
                 int columnSqltype = this.resultSetMetaData.getMiddle().get(i);
-                preparedStatement = fillPreparedStatementColumnType(preparedStatement, i, columnSqltype, record.getColumn(i));
+                String columnSqlTypeName = this.resultSetMetaData.getRight().get(i);
+                preparedStatement = fillPreparedStatementColumnType(preparedStatement, i, columnSqltype, record.getColumn(i), columnSqlTypeName);
             }
 
             return preparedStatement;
         }
 
-        protected PreparedStatement fillPreparedStatementColumnType(PreparedStatement preparedStatement, int columnIndex, int columnSqltype, Column column) throws SQLException {
+        protected PreparedStatement fillPreparedStatementColumnType(PreparedStatement preparedStatement, int columnIndex, int columnSqltype, Column column, String columnSqlTypeName) throws SQLException {
             java.util.Date utilDate;
             switch (columnSqltype) {
                 case Types.CHAR:
@@ -509,8 +510,14 @@ public class CommonRdbmsWriter {
                 case Types.VARBINARY:
                 case Types.BLOB:
                 case Types.LONGVARBINARY:
-                    preparedStatement.setBytes(columnIndex + 1, column
+                    if ("GEOMETRY".equals(columnSqlTypeName)) { // 由于JDBC读出的类型为BINARY
+                        preparedStatement.setString(columnIndex + 1, column
+                            .asString());
+                    } else {
+                        preparedStatement.setBytes(columnIndex + 1, column
                             .asBytes());
+                    }
+
                     break;
 
                 case Types.BOOLEAN:
@@ -543,26 +550,32 @@ public class CommonRdbmsWriter {
         }
 
         private void calcWriteRecordSql() {
-            if (!VALUE_HOLDER.equals(calcValueHolder(""))) {
-                List<String> valueHolders = new ArrayList<String>(columnNumber);
-                for (int i = 0; i < columns.size(); i++) {
-                    String type = resultSetMetaData.getRight().get(i);
-                    valueHolders.add(calcValueHolder(type));
-                }
-
-                boolean forceUseUpdate = false;
-                //ob10的处理
-                if (dataBaseType != null && dataBaseType == DataBaseType.MySql && OriginalConfPretreatmentUtil.isOB10(jdbcUrl)) {
-                    forceUseUpdate = true;
-                }
-
-                INSERT_OR_REPLACE_TEMPLATE = WriterUtil.getWriteTemplate(columns, valueHolders, writeMode, dataBaseType, forceUseUpdate);
-                writeRecordSql = String.format(INSERT_OR_REPLACE_TEMPLATE, this.table);
+//            if (!VALUE_HOLDER.equals(calcValueHolder(""))) {
+            List<String> valueHolders = new ArrayList<String>(columnNumber);
+            for (int i = 0; i < columns.size(); i++) {
+                String type = resultSetMetaData.getRight().get(i);
+                valueHolders.add(calcValueHolder(type));
             }
+
+            boolean forceUseUpdate = false;
+            //ob10的处理
+            if (dataBaseType != null && dataBaseType == DataBaseType.MySql && OriginalConfPretreatmentUtil.isOB10(jdbcUrl)) {
+                forceUseUpdate = true;
+            }
+
+            INSERT_OR_REPLACE_TEMPLATE = WriterUtil.getWriteTemplate(columns, valueHolders, writeMode, dataBaseType, forceUseUpdate);
+            writeRecordSql = String.format(INSERT_OR_REPLACE_TEMPLATE, this.table);
+            LOG.info("Write data [{}].", writeRecordSql);
+//            }
         }
 
         protected String calcValueHolder(String columnType) {
-            return VALUE_HOLDER;
+            // 增加GEOMETRY的转换函数
+            if (DataBaseType.MySql.getTypeName().equalsIgnoreCase(this.dataBaseType.getTypeName()) && "geometry".equalsIgnoreCase(columnType)) {
+                return "geomfromtext(" + VALUE_HOLDER + ")";
+            } else {
+                return VALUE_HOLDER;
+            }
         }
     }
 }

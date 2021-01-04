@@ -175,6 +175,24 @@ DataX本身作为数据同步框架，将不同数据源的同步抽象为从源
     读写失败总数                    :                   0
     ```
 
+# IntelliJ IDEA中启动
+
+**vm option**
+
+```
+-Ddatax.home=/Users/huzekang/openSource/DataX/target/datax/datax
+```
+
+**program args**
+
+```
+# -jobType string 类似hive -e，只是把作业内容转成了base64字符串
+-mode standalone -jobid -1 -jobType string -job ewoJImpvYiI6IH*********fQoJfQp9
+或
+# -jobType file 类似于hive -f
+-mode standalone -jobid -1 -jobtype file -job /Users/zhangws/Documents/dev/DataX/target/datax/datax/tmp/HiveToMySQL.json
+```
+
 # Contact us
 
 Google Groups: [DataX-user](https://github.com/alibaba/DataX)

@@ -31,6 +31,7 @@ public class HdfsWriter extends Writer {
         private String fieldDelimiter;
         private String compress;
         private String encoding;
+        private String tempDirectory;
         private HashSet<String> tmpFiles = new HashSet<String>();//临时文件全路径
         private HashSet<String> endFiles = new HashSet<String>();//最终文件全路径
 
@@ -45,6 +46,15 @@ public class HdfsWriter extends Writer {
             hdfsHelper = new HdfsHelper();
 
             hdfsHelper.getFileSystem(defaultFS, this.writerSliceConfig);
+
+            tempDirectory = ConfUtil.getTempDirectory("writer", "hdfs");
+            if (tempDirectory == null) {
+                tempDirectory = "";
+            } else {
+                if (tempDirectory.endsWith("/")) {
+                    tempDirectory = tempDirectory.substring(0, tempDirectory.length() -1);
+                }
+            }
         }
 
         private void validateParameter() {
@@ -81,10 +91,10 @@ public class HdfsWriter extends Writer {
             //writeMode check
             this.writeMode = this.writerSliceConfig.getNecessaryValue(Key.WRITE_MODE, HdfsWriterErrorCode.REQUIRED_VALUE);
             writeMode = writeMode.toLowerCase().trim();
-            Set<String> supportedWriteModes = Sets.newHashSet("append", "nonconflict", "truncate");
+            Set<String> supportedWriteModes = Sets.newHashSet("append", "nonconflict", "overwrite");
             if (!supportedWriteModes.contains(writeMode)) {
                 throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
-                        String.format("仅支持append, nonConflict, truncate三种模式, 不支持您配置的 writeMode 模式 : [%s]",
+                        String.format("仅支持append, nonConflict, overwrite三种模式, 不支持您配置的 writeMode 模式 : [%s]",
                                 writeMode));
             }
             this.writerSliceConfig.set(Key.WRITE_MODE, writeMode);
@@ -147,46 +157,49 @@ public class HdfsWriter extends Writer {
 
         @Override
         public void prepare() {
-            //若路径已经存在，检查path是否是目录
-            if(hdfsHelper.isPathexists(path)){
-                if(!hdfsHelper.isPathDir(path)){
+            // 如果目录不存在，则创建
+            if (!hdfsHelper.isPathexists(path) && !hdfsHelper.mkdirs(path)) {
+                if (!hdfsHelper.mkdirs(path)) {
                     throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
-                            String.format("您配置的path: [%s] 不是一个合法的目录, 请您注意文件重名, 不合法目录名等情况.",
-                                    path));
+                        String.format("The path: [%s] does not exist, but creation failed. Create the corresponding database and tables on the hive side first.", path));
                 }
-                //根据writeMode对目录下文件进行处理
-                Path[] existFilePaths = hdfsHelper.hdfsDirList(path,fileName);
-                boolean isExistFile = false;
-                if(existFilePaths.length > 0){
-                    isExistFile = true;
-                }
-                /**
-                 if ("truncate".equals(writeMode) && isExistFile ) {
-                 LOG.info(String.format("由于您配置了writeMode truncate, 开始清理 [%s] 下面以 [%s] 开头的内容",
-                 path, fileName));
-                 hdfsHelper.deleteFiles(existFilePaths);
-                 } else
-                 */
-                if ("append".equalsIgnoreCase(writeMode)) {
-                    LOG.info(String.format("由于您配置了writeMode append, 写入前不做清理工作, [%s] 目录下写入相应文件名前缀  [%s] 的文件",
-                            path, fileName));
-                } else if ("nonconflict".equalsIgnoreCase(writeMode) && isExistFile) {
-                    LOG.info(String.format("由于您配置了writeMode nonConflict, 开始检查 [%s] 下面的内容", path));
-                    List<String> allFiles = new ArrayList<String>();
-                    for (Path eachFile : existFilePaths) {
-                        allFiles.add(eachFile.toString());
-                    }
-                    LOG.error(String.format("冲突文件列表为: [%s]", StringUtils.join(allFiles, ",")));
-                    throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
-                            String.format("由于您配置了writeMode nonConflict,但您配置的path: [%s] 目录不为空, 下面存在其他文件或文件夹.", path));
-                }else if ("truncate".equalsIgnoreCase(writeMode) && isExistFile) {
-                    LOG.info(String.format("由于您配置了writeMode truncate,  [%s] 下面的内容将被覆盖重写", path));
-                    hdfsHelper.deleteFiles(existFilePaths);
-                }
-            }else{
-                throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
-                        String.format("您配置的path: [%s] 不存在, 请先在hive端创建对应的数据库和表.", path));
             }
+            //若路径已经存在，检查path是否是目录
+//            if(hdfsHelper.isPathexists(path)){
+            if(!hdfsHelper.isPathDir(path)){
+                throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
+                        String.format("您配置的path: [%s] 不是一个合法的目录, 请您注意文件重名, 不合法目录名等情况.",
+                                path));
+            }
+            //根据writeMode对目录下文件进行处理
+            Path[] existFilePaths = hdfsHelper.hdfsDirList2(path);
+            boolean isExistFile = false;
+            if(existFilePaths.length > 0){
+                isExistFile = true;
+            }
+            if ("overwrite".equals(writeMode) && isExistFile ) {
+                LOG.info(String.format("由于您配置了writeMode overwrite, 开始清理 [%s] 下面以 [%s] 开头的内容", path, fileName));
+                hdfsHelper.deleteFiles(existFilePaths);
+            } else if ("append".equalsIgnoreCase(writeMode)) {
+                LOG.info(String.format("由于您配置了writeMode append, 写入前不做清理工作, [%s] 目录下写入相应文件名前缀  [%s] 的文件",
+                        path, fileName));
+            } else if ("nonconflict".equalsIgnoreCase(writeMode) && isExistFile) {
+                LOG.info(String.format("由于您配置了writeMode nonConflict, 开始检查 [%s] 下面的内容", path));
+                List<String> allFiles = new ArrayList<String>();
+                for (Path eachFile : existFilePaths) {
+                    allFiles.add(eachFile.toString());
+                }
+                LOG.error(String.format("冲突文件列表为: [%s]", StringUtils.join(allFiles, ",")));
+                throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
+                        String.format("由于您配置了writeMode nonConflict,但您配置的path: [%s] 目录不为空, 下面存在其他文件或文件夹.", path));
+//            } else if ("truncate".equalsIgnoreCase(writeMode) && isExistFile) {
+//                LOG.info(String.format("由于您配置了writeMode truncate,  [%s] 下面的内容将被覆盖重写", path));
+//                hdfsHelper.deleteFiles(existFilePaths);
+            }
+//            }else{
+//                throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE,
+//                        String.format("您配置的path: [%s] 不存在, 请先在hive端创建对应的数据库和表.", path));
+//            }
         }
 
         @Override
@@ -214,7 +227,7 @@ public class HdfsWriter extends Writer {
 
             String fileSuffix;
             //临时存放路径
-            String storePath =  buildTmpFilePath(this.path);
+            String storePath =  buildTmpFilePath(this.tempDirectory, this.path);
             //最终存放路径
             String endStorePath = buildFilePath();
             this.path = endStorePath;
@@ -277,7 +290,7 @@ public class HdfsWriter extends Writer {
                     break;
             }
             if (!isEndWithSeparator) {
-                this.path = this.path + IOUtils.DIR_SEPARATOR;
+                this.path = this.path + IOUtils.DIR_SEPARATOR_UNIX;
             }
             return this.path;
         }
@@ -287,7 +300,7 @@ public class HdfsWriter extends Writer {
          * @param userPath
          * @return
          */
-        private String buildTmpFilePath(String userPath) {
+        private String buildTmpFilePath(String rootPath, String userPath) {
             String tmpFilePath;
             boolean isEndWithSeparator = false;
             switch (IOUtils.DIR_SEPARATOR) {
@@ -305,20 +318,20 @@ public class HdfsWriter extends Writer {
             String tmpSuffix;
             tmpSuffix = UUID.randomUUID().toString().replace('-', '_');
             if (!isEndWithSeparator) {
-                tmpFilePath = String.format("%s__%s%s", userPath, tmpSuffix, IOUtils.DIR_SEPARATOR);
+                tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath, tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
             }else if("/".equals(userPath)){
-                tmpFilePath = String.format("%s__%s%s", userPath, tmpSuffix, IOUtils.DIR_SEPARATOR);
+                tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath, tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
             }else{
-                tmpFilePath = String.format("%s__%s%s", userPath.substring(0,userPath.length()-1), tmpSuffix, IOUtils.DIR_SEPARATOR);
+                tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath.substring(0,userPath.length()-1), tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
             }
             while(hdfsHelper.isPathexists(tmpFilePath)){
                 tmpSuffix = UUID.randomUUID().toString().replace('-', '_');
                 if (!isEndWithSeparator) {
-                    tmpFilePath = String.format("%s__%s%s", userPath, tmpSuffix, IOUtils.DIR_SEPARATOR);
+                    tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath, tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
                 }else if("/".equals(userPath)){
-                    tmpFilePath = String.format("%s__%s%s", userPath, tmpSuffix, IOUtils.DIR_SEPARATOR);
+                    tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath, tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
                 }else{
-                    tmpFilePath = String.format("%s__%s%s", userPath.substring(0,userPath.length()-1), tmpSuffix, IOUtils.DIR_SEPARATOR);
+                    tmpFilePath = String.format("%s%s__%s%s", rootPath, userPath.substring(0,userPath.length()-1), tmpSuffix, IOUtils.DIR_SEPARATOR_UNIX);
                 }
             }
             return tmpFilePath;

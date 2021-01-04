@@ -180,6 +180,9 @@ public class DFSUtil {
 
     // 根据用户指定的文件类型，将指定的文件类型的路径加入sourceHDFSAllFilesList
     private void addSourceFileByType(String filePath) {
+        if (filePath.contains(".hive-staging_hive")) {
+            return;
+        }
         // 检查file的类型和用户配置的fileType类型是否一致
         boolean isMatchedFileType = checkHdfsFileType(filePath, this.specifiedFileType);
 
@@ -399,9 +402,11 @@ public class DFSUtil {
                     }
                     switch (type) {
                         case STRING:
+                        case TIMESTAMP:
                             columnGenerated = new StringColumn(columnValue);
                             break;
                         case LONG:
+                        case BIGINT:
                             try {
                                 columnGenerated = new LongColumn(columnValue);
                             } catch (Exception e) {
@@ -513,11 +518,10 @@ public class DFSUtil {
     }
 
     private enum Type {
-        STRING, LONG, BOOLEAN, DOUBLE, DATE,
+        STRING, LONG, BOOLEAN, DOUBLE, DATE, BIGINT, TIMESTAMP,
     }
 
     public boolean checkHdfsFileType(String filepath, String specifiedFileType) {
-
         Path file = new Path(filepath);
 
         try {

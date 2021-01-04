@@ -121,32 +121,39 @@ public class Engine {
 
     public static void entry(final String[] args) throws Throwable {
         Options options = new Options();
+
         options.addOption("job", true, "Job config.");
         options.addOption("jobid", true, "Job unique id.");
         options.addOption("mode", true, "Job runtime mode.");
+        options.addOption("jobtype", true, "Job config type.");
 
         BasicParser parser = new BasicParser();
         CommandLine cl = parser.parse(options, args);
 
+        String jobType = cl.getOptionValue("jobtype");
         String jobPath = cl.getOptionValue("job");
 
         // 如果用户没有明确指定jobid, 则 datax.py 会指定 jobid 默认值为-1
         String jobIdString = cl.getOptionValue("jobid");
         RUNTIME_MODE = cl.getOptionValue("mode");
 
-        Configuration configuration = ConfigParser.parse(jobPath);
+        Configuration configuration = ConfigParser.parse(jobType, jobPath);
 
         long jobId;
         if (!"-1".equalsIgnoreCase(jobIdString)) {
             jobId = Long.parseLong(jobIdString);
         } else {
-            // only for dsc & ds & datax 3 update
-            String dscJobUrlPatternString = "/instance/(\\d{1,})/config.xml";
-            String dsJobUrlPatternString = "/inner/job/(\\d{1,})/config";
-            String dsTaskGroupUrlPatternString = "/inner/job/(\\d{1,})/taskGroup/";
-            List<String> patternStringList = Arrays.asList(dscJobUrlPatternString,
+            if ("file".equals(jobType)) {
+                // only for dsc & ds & datax 3 update
+                String dscJobUrlPatternString = "/instance/(\\d{1,})/config.xml";
+                String dsJobUrlPatternString = "/inner/job/(\\d{1,})/config";
+                String dsTaskGroupUrlPatternString = "/inner/job/(\\d{1,})/taskGroup/";
+                List<String> patternStringList = Arrays.asList(dscJobUrlPatternString,
                     dsJobUrlPatternString, dsTaskGroupUrlPatternString);
-            jobId = parseJobIdFromUrl(patternStringList, jobPath);
+                jobId = parseJobIdFromUrl(patternStringList, jobPath);
+            } else {
+                jobId = System.currentTimeMillis();
+            }
         }
 
         boolean isStandAloneMode = "standalone".equalsIgnoreCase(RUNTIME_MODE);

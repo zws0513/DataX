@@ -1,0 +1,19 @@
+FROM centos:7
+
+#RUN echo Asia/shanghai > /etc/timezone
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+RUN yum -y install wget iproute kde-l10n-Chinese glibc-common
+RUN localedef -c -f UTF-8 -i zh_CN zh_CN.utf8
+RUN export LANG=zh_CN.UTF-8
+RUN echo "export LANG=zh_CN.UTF-8" >> /etc/locale.conf
+ENV LANG zh_CN.UTF-8
+ENV LC_ALL zh_CN.UTF-8
+
+ENV JAVA_HOME /usr/java/latest
+ENV PATH $PATH:$JAVA_HOME/bin
+RUN wget -nv http://yunli-bigdata.oss-cn-beijing.aliyuncs.com/java-1.8.0-amazon-corretto-devel-1.8.0.x86_64.rpm -O /tmp/jdk.rpm && \
+    yum -y install /tmp/jdk.rpm && \
+    rm -rf /tmp/jdk.rpm
+
+COPY target/datax/datax /datax

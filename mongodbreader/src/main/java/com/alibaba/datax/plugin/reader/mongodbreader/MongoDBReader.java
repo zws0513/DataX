@@ -1,5 +1,6 @@
 package com.alibaba.datax.plugin.reader.mongodbreader;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -93,6 +94,15 @@ public class MongoDBReader extends Reader {
         private Object upperBound = null;
         private boolean isObjectId = true;
 
+        public static Date toDate(String dateStr) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            try {
+                return sdf.parse(dateStr);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
         @Override
         public void startRead(RecordSender recordSender) {
 
@@ -127,54 +137,73 @@ public class MongoDBReader extends Reader {
                 Iterator columnItera = mongodbColumnMeta.iterator();
                 while (columnItera.hasNext()) {
                     JSONObject column = (JSONObject)columnItera.next();
-                    Object tempCol = item.get(column.getString(KeyConstant.COLUMN_NAME));
-                    if (tempCol == null) {
-                        if (KeyConstant.isDocumentType(column.getString(KeyConstant.COLUMN_TYPE))) {
-                            String[] name = column.getString(KeyConstant.COLUMN_NAME).split("\\.");
-                            if (name.length > 1) {
-                                Object obj;
-                                Document nestedDocument = item;
-                                for (String str : name) {
-                                    obj = nestedDocument.get(str);
-                                    if (obj instanceof Document) {
-                                        nestedDocument = (Document) obj;
+                    String columnName = column.getString(KeyConstant.COLUMN_NAME);
+                    if (columnName == null) {
+                        String columnValue = column.getString(KeyConstant.COLUMN_VALUE);
+                        String columnType = column.getString(KeyConstant.COLUMN_TYPE);
+                        if ("double".equalsIgnoreCase(columnType)) {
+                            record.addColumn(new DoubleColumn(columnValue));
+                        } else if ("boolean".equalsIgnoreCase(columnType)) {
+                            record.addColumn(new BoolColumn(columnValue));
+                        } else if ("date".equalsIgnoreCase(columnType)) {
+                            record.addColumn(new DateColumn(toDate(columnValue)));
+                        } else if ("integer".equalsIgnoreCase(columnType) || "int".equalsIgnoreCase(columnType)) {
+                            record.addColumn(new LongColumn(columnValue));
+                        } else if ("long".equalsIgnoreCase(columnType)) {
+                            record.addColumn(new LongColumn(columnValue));
+                        } else {
+                            record.addColumn(new StringColumn(columnValue));
+                        }
+                    } else {
+                        Object tempCol = item.get(columnName);
+                        if (tempCol == null) {
+                            if (KeyConstant.isDocumentType(column.getString(KeyConstant.COLUMN_TYPE))) {
+                                String[] name = columnName.split("\\.");
+                                if (name.length > 1) {
+                                    Object obj;
+                                    Document nestedDocument = item;
+                                    for (String str : name) {
+                                        obj = nestedDocument.get(str);
+                                        if (obj instanceof Document) {
+                                            nestedDocument = (Document) obj;
+                                        }
                                     }
-                                }
 
-                                if (null != nestedDocument) {
-                                    Document doc = nestedDocument;
-                                    tempCol = doc.get(name[name.length - 1]);
+                                    if (null != nestedDocument) {
+                                        Document doc = nestedDocument;
+                                        tempCol = doc.get(name[name.length - 1]);
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (tempCol == null) {
-                        //continue; 这个不能直接continue会导致record到目的端错位
-                        record.addColumn(new StringColumn(null));
-                    }else if (tempCol instanceof Double) {
-                        //TODO deal with Double.isNaN()
-                        record.addColumn(new DoubleColumn((Double) tempCol));
-                    } else if (tempCol instanceof Boolean) {
-                        record.addColumn(new BoolColumn((Boolean) tempCol));
-                    } else if (tempCol instanceof Date) {
-                        record.addColumn(new DateColumn((Date) tempCol));
-                    } else if (tempCol instanceof Integer) {
-                        record.addColumn(new LongColumn((Integer) tempCol));
-                    }else if (tempCol instanceof Long) {
-                        record.addColumn(new LongColumn((Long) tempCol));
-                    } else {
-                        if(KeyConstant.isArrayType(column.getString(KeyConstant.COLUMN_TYPE))) {
-                            String splitter = column.getString(KeyConstant.COLUMN_SPLITTER);
-                            if(Strings.isNullOrEmpty(splitter)) {
-                                throw DataXException.asDataXException(MongoDBReaderErrorCode.ILLEGAL_VALUE,
-                                    MongoDBReaderErrorCode.ILLEGAL_VALUE.getDescription());
-                            } else {
-                                ArrayList array = (ArrayList)tempCol;
-                                String tempArrayStr = Joiner.on(splitter).join(array);
-                                record.addColumn(new StringColumn(tempArrayStr));
-                            }
+                        if (tempCol == null) {
+                            //continue; 这个不能直接continue会导致record到目的端错位
+                            record.addColumn(new StringColumn(null));
+                        }else if (tempCol instanceof Double) {
+                            //TODO deal with Double.isNaN()
+                            record.addColumn(new DoubleColumn((Double) tempCol));
+                        } else if (tempCol instanceof Boolean) {
+                            record.addColumn(new BoolColumn((Boolean) tempCol));
+                        } else if (tempCol instanceof Date) {
+                            record.addColumn(new DateColumn((Date) tempCol));
+                        } else if (tempCol instanceof Integer) {
+                            record.addColumn(new LongColumn((Integer) tempCol));
+                        }else if (tempCol instanceof Long) {
+                            record.addColumn(new LongColumn((Long) tempCol));
                         } else {
-                            record.addColumn(new StringColumn(tempCol.toString()));
+                            if(KeyConstant.isArrayType(column.getString(KeyConstant.COLUMN_TYPE))) {
+                                String splitter = column.getString(KeyConstant.COLUMN_SPLITTER);
+                                if(Strings.isNullOrEmpty(splitter)) {
+                                    throw DataXException.asDataXException(MongoDBReaderErrorCode.ILLEGAL_VALUE,
+                                        MongoDBReaderErrorCode.ILLEGAL_VALUE.getDescription());
+                                } else {
+                                    ArrayList array = (ArrayList)tempCol;
+                                    String tempArrayStr = Joiner.on(splitter).join(array);
+                                    record.addColumn(new StringColumn(tempArrayStr));
+                                }
+                            } else {
+                                record.addColumn(new StringColumn(tempCol.toString()));
+                            }
                         }
                     }
                 }

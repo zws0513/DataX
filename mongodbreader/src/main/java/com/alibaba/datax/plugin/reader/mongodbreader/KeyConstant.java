@@ -8,10 +8,12 @@ public class KeyConstant {
      * 数组类型
      */
     public static final String ARRAY_TYPE = "array";
+    public static final String ARRAY_LIST_TYPE = "arraylist";
     /**
      * 嵌入文档数组类型
      */
     public static final String DOCUMENT_ARRAY_TYPE = "document.array";
+    public static final String DOCUMENT_ARRAY_LIST_TYPE = "document.arraylist";
     /**
      * 嵌入文档类型
      */
@@ -53,6 +55,10 @@ public class KeyConstant {
      */
     public static final String COLUMN_NAME = "name";
     /**
+     * 列值
+     */
+    public static final String COLUMN_VALUE = "value";
+    /**
      * 每个列的类型
      */
     public static final String COLUMN_TYPE = "type";
@@ -88,7 +94,10 @@ public class KeyConstant {
      * @return
      */
     public static boolean isArrayType(String type) {
-        return ARRAY_TYPE.equals(type) || DOCUMENT_ARRAY_TYPE.equals(type);
+        return ARRAY_TYPE.equalsIgnoreCase(type) ||
+            DOCUMENT_ARRAY_TYPE.equalsIgnoreCase(type) ||
+            ARRAY_LIST_TYPE.equalsIgnoreCase(type) ||
+            DOCUMENT_ARRAY_LIST_TYPE.equalsIgnoreCase(type);
     }
 
     public static boolean isDocumentType(String type) {

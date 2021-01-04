@@ -9,6 +9,7 @@ public class KeyConstant {
      * 数组类型
      */
     public static final String ARRAY_TYPE = "array";
+    public static final String ARRAY_LIST_TYPE = "arraylist";
     /**
      * ObjectId类型
      */
@@ -67,7 +68,7 @@ public class KeyConstant {
      * @return
      */
     public static boolean isArrayType(String type) {
-        return ARRAY_TYPE.equals(type);
+        return ARRAY_TYPE.equalsIgnoreCase(type) || ARRAY_LIST_TYPE.equalsIgnoreCase(type);
     }
     /**
      * 判断是否为ObjectId类型

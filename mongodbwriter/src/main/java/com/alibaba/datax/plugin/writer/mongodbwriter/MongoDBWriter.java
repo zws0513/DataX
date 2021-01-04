@@ -1,6 +1,7 @@
 package com.alibaba.datax.plugin.writer.mongodbwriter;
 
 import com.alibaba.datax.common.element.*;
+import com.alibaba.datax.common.element.Column.Type;
 import com.alibaba.datax.common.exception.DataXException;
 import com.alibaba.datax.common.plugin.RecordReceiver;
 import com.alibaba.datax.common.spi.Writer;
@@ -248,7 +249,10 @@ public class MongoDBWriter extends Writer{
 
                         if (Column.Type.DATE.name().equalsIgnoreCase(type)) {
                             data.put(columnMeta.getJSONObject(i).getString(KeyConstant.COLUMN_NAME),
-                                    record.getColumn(i).asDate());
+                                record.getColumn(i).asDate());
+                        } else if (Type.STRING.name().equalsIgnoreCase(type)) {
+                            data.put(columnMeta.getJSONObject(i).getString(KeyConstant.COLUMN_NAME),
+                                record.getColumn(i).asDate());
                         } else {
                             super.getTaskPluginCollector().collectDirtyRecord(record, "record's [" + i + "] column's type should be: " + type);
                         }

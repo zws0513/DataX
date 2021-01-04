@@ -29,7 +29,7 @@ public class SubCommonRdbmsWriter extends CommonRdbmsWriter {
         @Override
         protected PreparedStatement fillPreparedStatementColumnType(
                 PreparedStatement preparedStatement, int columnIndex,
-                int columnSqltype, Column column) throws SQLException {
+                int columnSqltype, Column column, String columnSqlTypeName) throws SQLException {
             java.util.Date utilDate;
             try {
                 switch (columnSqltype) {
@@ -119,11 +119,16 @@ public class SubCommonRdbmsWriter extends CommonRdbmsWriter {
                 case Types.VARBINARY:
                 case Types.BLOB:
                 case Types.LONGVARBINARY:
-                    if (null == column.getRawData()) {
-                        preparedStatement.setObject(columnIndex + 1, null);
+                    if ("GEOMETRY".equals(columnSqlTypeName)) { // 由于JDBC读出的类型为BINARY
+                        preparedStatement.setString(columnIndex + 1, column
+                            .asString());
                     } else {
-                        preparedStatement.setBytes(columnIndex + 1,
+                        if (null == column.getRawData()) {
+                            preparedStatement.setObject(columnIndex + 1, null);
+                        } else {
+                            preparedStatement.setBytes(columnIndex + 1,
                                 column.asBytes());
+                        }
                     }
                     break;
 

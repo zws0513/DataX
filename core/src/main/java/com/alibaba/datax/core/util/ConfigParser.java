@@ -3,6 +3,8 @@ package com.alibaba.datax.core.util;
 import com.alibaba.datax.common.exception.DataXException;
 import com.alibaba.datax.common.util.Configuration;
 import com.alibaba.datax.core.util.container.CoreConstant;
+
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.client.methods.HttpGet;
@@ -12,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -22,8 +25,8 @@ public final class ConfigParser {
     /**
      * 指定Job配置路径，ConfigParser会解析Job、Plugin、Core全部信息，并以Configuration返回
      */
-    public static Configuration parse(final String jobPath) {
-        Configuration configuration = ConfigParser.parseJobConfig(jobPath);
+    public static Configuration parse(final String jobType, final String job) {
+        Configuration configuration = ConfigParser.parseJobConfig(jobType, job);
 
         configuration.merge(
                 ConfigParser.parseCoreConfig(CoreConstant.DATAX_CONF_PATH),
@@ -70,8 +73,15 @@ public final class ConfigParser {
         return Configuration.from(new File(path));
     }
 
-    public static Configuration parseJobConfig(final String path) {
-        String jobContent = getJobContent(path);
+    public static Configuration parseJobConfig(final String jobType, final String job) {
+        String jobContent;
+        if ("file".equalsIgnoreCase(jobType)) {
+            jobContent = getJobContent(job);
+        } else {
+            Base64 base64 = new Base64();
+            byte[] base64Byte = base64.decode(job);
+            jobContent = new String(base64Byte, StandardCharsets.UTF_8);
+        }
         Configuration config = Configuration.from(jobContent);
 
         return SecretUtil.decryptSecretKey(config);
